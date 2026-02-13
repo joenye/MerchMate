@@ -208,7 +208,7 @@ export class OCRProcessor {
     if (allBounties.length > 0) {
       const signature = this.makeAllBountiesSignature(allBounties);
       const boardOpen = this.prevBoardOpenSignature;
-      this.launchFindBestIfNeeded(allBounties, boardOpen, signature, 'forceOptimal');
+      this.launchFindBestIfNeeded(allBounties, boardOpen, signature, 'forceOptimal', this.activeBounties, this.boardBounties, this.activeBountyRarities, this.boardBountyRarities);
     } else {
       console.log('[optimal] No bounties available to recalculate');
       this.forceOptimal = false;
@@ -398,7 +398,11 @@ export class OCRProcessor {
   private async computeFindBest(
     allBounties: string[],
     boardOpen: boolean,
-    signature: string
+    signature: string,
+    detectedActive: { [index: number]: string },
+    detectedBoard: { [index: number]: string },
+    detectedActiveRarities: { [index: number]: 'uncommon' | 'rare' | 'epic' | null },
+    detectedBoardRarities: { [index: number]: 'uncommon' | 'rare' | 'epic' | null }
   ): Promise<FindBestResult> {
     // Map quality level (1-5) to pruning options
     // Level 1: Heavy pruning (100 combos, 0.90 threshold)
@@ -420,16 +424,16 @@ export class OCRProcessor {
 
     // Convert index-based rarities to bounty-key-based rarities
     const bountyRarities: { [bountyKey: string]: 'uncommon' | 'rare' | 'epic' | null } = {};
-    for (const [indexStr, bountyKey] of Object.entries(this.activeBounties)) {
+    for (const [indexStr, bountyKey] of Object.entries(detectedActive)) {
       const index = Number(indexStr);
-      if (index in this.activeBountyRarities) {
-        bountyRarities[bountyKey] = this.activeBountyRarities[index];
+      if (index in detectedActiveRarities) {
+        bountyRarities[bountyKey] = detectedActiveRarities[index];
       }
     }
-    for (const [indexStr, bountyKey] of Object.entries(this.boardBounties)) {
+    for (const [indexStr, bountyKey] of Object.entries(detectedBoard)) {
       const index = Number(indexStr);
-      if (index in this.boardBountyRarities) {
-        bountyRarities[bountyKey] = this.boardBountyRarities[index];
+      if (index in detectedBoardRarities) {
+        bountyRarities[bountyKey] = detectedBoardRarities[index];
       }
     }
 
@@ -471,7 +475,11 @@ export class OCRProcessor {
     allBounties: string[],
     boardOpen: boolean,
     signature: string,
-    reason: string
+    reason: string,
+    detectedActive: { [index: number]: string },
+    detectedBoard: { [index: number]: string },
+    detectedActiveRarities: { [index: number]: 'uncommon' | 'rare' | 'epic' | null },
+    detectedBoardRarities: { [index: number]: 'uncommon' | 'rare' | 'epic' | null }
   ): void {
     if (this.inFlightFind && this.inFlightFind.signature === signature) return;
 
@@ -492,7 +500,7 @@ export class OCRProcessor {
 
     const promise = (async () => {
       try {
-        const optimalResp = await this.computeFindBest(allBounties, boardOpen, signature);
+        const optimalResp = await this.computeFindBest(allBounties, boardOpen, signature, detectedActive, detectedBoard, detectedActiveRarities, detectedBoardRarities);
 
         const newEfficiency = optimalResp.kp / optimalResp.distance;
         const currentEfficiency = this.prevOptimalBounties.length > 0 && this.distanceSeconds > 0
@@ -702,7 +710,7 @@ export class OCRProcessor {
           this.distanceSeconds = NaN;
           this.steps = [];
           this.displaySteps = [];
-          this.launchFindBestIfNeeded(activeBountyList, false, activeSignature, 'boardClosedRecalc');
+          this.launchFindBestIfNeeded(activeBountyList, false, activeSignature, 'boardClosedRecalc', detectedActive, {}, detectedActiveRarities, {});
         }
       }
     }
@@ -783,7 +791,7 @@ export class OCRProcessor {
         this.stepIdx = 0;
       }
 
-      this.launchFindBestIfNeeded(allBounties, boardOpen, signature, reason);
+      this.launchFindBestIfNeeded(allBounties, boardOpen, signature, reason, detectedActive, detectedBoard, detectedActiveRarities, detectedBoardRarities);
     }
     
     this.prevBoardOpenSignature = boardOpen;
@@ -941,7 +949,7 @@ export class OCRProcessor {
               this.steps = [];
               this.displaySteps = [];
               this.stepIdx = 0; // Reset stepIdx so new route includes BUY steps
-              this.launchFindBestIfNeeded(activeBountyList, false, activeSignature, 'sanityCheckFailed');
+              this.launchFindBestIfNeeded(activeBountyList, false, activeSignature, 'sanityCheckFailed', detectedActive, {}, detectedActiveRarities, {});
             }
           }
         }
@@ -1091,7 +1099,7 @@ export class OCRProcessor {
       this.stepIdx = 0; // Reset stepIdx so new route includes BUY steps
       
       const signature = this.makeAllBountiesSignature(activeBountyList);
-      this.launchFindBestIfNeeded(activeBountyList, false, signature, 'consistencyFix');
+      this.launchFindBestIfNeeded(activeBountyList, false, signature, 'consistencyFix', this.activeBounties, {}, this.activeBountyRarities, {});
     }
   }
   
@@ -1118,7 +1126,7 @@ export class OCRProcessor {
       const allBounties = [...Object.values(this.activeBounties), ...Object.values(this.boardBounties)];
       if (allBounties.length > 0) {
         const signature = this.makeAllBountiesSignature(allBounties);
-        this.launchFindBestIfNeeded(allBounties, true, signature, 'adjustmentDebounce');
+        this.launchFindBestIfNeeded(allBounties, true, signature, 'adjustmentDebounce', this.activeBounties, this.boardBounties, this.activeBountyRarities, this.boardBountyRarities);
       }
       
       this.adjustmentDebounceTimer = null;
