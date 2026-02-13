@@ -173,4 +173,9 @@ export class OverlayWindow {
     // Send to renderer to update DOM
     this.window?.webContents.send('regions-update', regions);
   }
+
+  updateChatFontSize(fontSize: number): void {
+    // Send to renderer to update chat font size
+    this.window?.webContents.send('chat-font-size-update', fontSize);
+  }
 }

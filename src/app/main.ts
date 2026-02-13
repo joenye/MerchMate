@@ -12,6 +12,7 @@ import { initLogger, closeLogger } from './utils/logger';
 import { OverlayController } from '../';
 import { APP_VERSION, GIT_HASH } from './version';
 import { checkForUpdates } from './utils/update-checker';
+import { setChatFontSize } from './ui/html-generator';
 
 // Set app name early (before any windows are created)
 // This affects the macOS menu bar title in development mode
@@ -76,6 +77,10 @@ async function main(): Promise<void> {
 
   const pathfindingQuality = config.pathfindingQuality ?? 5;
   console.log("[init] Pathfinding quality:", pathfindingQuality);
+
+  const chatBoxFontSize = config.chatBoxFontSize ?? 23;
+  console.log("[init] Chat box font size:", chatBoxFontSize);
+  setChatFontSize(chatBoxFontSize);
 
   const ocrProcessor = new OCRProcessor({
     concurrency: ocrConcurrency,
@@ -192,6 +197,12 @@ async function main(): Promise<void> {
 
   ipcMain.handle('get-edit-mode', () => {
     return overlayWindow.isEditMode();
+  });
+
+  // Handle chat font size updates from settings window
+  ipcMain.on('update-chat-font-size', (_event, fontSize: number) => {
+    console.log('[settings] Chat font size updated:', fontSize);
+    overlayWindow.updateChatFontSize(fontSize);
   });
 
   // Handle settings window visibility around overlay attachment

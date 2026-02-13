@@ -945,6 +945,11 @@ function generateSettingsHTML(config: Config, version: string, gitHash: string, 
 
     <div class="section">
       <h2>UI Layout</h2>
+      <div class="form-group">
+        <label for="chatBoxFontSize">Chat Box Font Size (px)</label>
+        <input type="number" id="chatBoxFontSize" min="10" max="50" value="${config.chatBoxFontSize ?? 23}">
+        <div class="hint">Font size for the chat box overlay (10-50px)</div>
+      </div>
       <div class="form-group" style="display: flex; gap: 24px; align-items: flex-start;">
         <div>
           <div class="switch-group">
@@ -1223,10 +1228,13 @@ function generateSettingsHTML(config: Config, version: string, gitHash: string, 
       // Active bounties
       const activeBountiesEl = document.getElementById('activeBounties');
       if (data.activeBounties && Object.keys(data.activeBounties).length > 0) {
-        const bounties = Object.values(data.activeBounties).filter(b => b); // Filter out any undefined/null
+        const bounties = Object.entries(data.activeBounties).filter(([_, b]) => b); // Filter out any undefined/null
         if (bounties.length > 0) {
           activeBountiesEl.innerHTML = bounties
-            .map(b => '<span class="bounty-tag active">' + formatBountyName(b) + '</span>')
+            .map(([index, bountyKey]) => {
+              const rarity = data.activeBountyRarities && data.activeBountyRarities[index] ? data.activeBountyRarities[index] : null;
+              return '<span class="bounty-tag active">' + formatBountyName(bountyKey, rarity) + '</span>';
+            })
             .join('');
         } else {
           activeBountiesEl.innerHTML = '<span style="color: #666;">None detected</span>';
@@ -1238,10 +1246,13 @@ function generateSettingsHTML(config: Config, version: string, gitHash: string, 
       // Board bounties
       const boardBountiesEl = document.getElementById('boardBounties');
       if (data.boardOpen && data.boardBounties && Object.keys(data.boardBounties).length > 0) {
-        const bounties = Object.values(data.boardBounties).filter(b => b); // Filter out any undefined/null
+        const bounties = Object.entries(data.boardBounties).filter(([_, b]) => b); // Filter out any undefined/null
         if (bounties.length > 0) {
           boardBountiesEl.innerHTML = bounties
-            .map(b => '<span class="bounty-tag board">' + formatBountyName(b) + '</span>')
+            .map(([index, bountyKey]) => {
+              const rarity = data.boardBountyRarities && data.boardBountyRarities[index] ? data.boardBountyRarities[index] : null;
+              return '<span class="bounty-tag board">' + formatBountyName(bountyKey, rarity) + '</span>';
+            })
             .join('');
         } else {
           boardBountiesEl.innerHTML = '<span style="color: #666;">None detected</span>';
@@ -1260,6 +1271,7 @@ function generateSettingsHTML(config: Config, version: string, gitHash: string, 
           const key = 'activeBountyRegion' + i;
           const text = data.rawOcrText[key] || '';
           const detected = data.activeBounties && data.activeBounties[i] ? data.activeBounties[i] : '';
+          const rarity = data.activeBountyRarities && data.activeBountyRarities[i] ? data.activeBountyRarities[i] : null;
           const matchType = data.matchTypes && data.matchTypes[key] ? data.matchTypes[key] : null;
           const fuzzyMatches = data.fuzzyDebug && data.fuzzyDebug[key] ? data.fuzzyDebug[key] : null;
           
@@ -1269,7 +1281,7 @@ function generateSettingsHTML(config: Config, version: string, gitHash: string, 
           if (detected) {
             const matchColor = matchType === 'exact' ? '#4ade80' : '#fbbf24';
             const matchLabel = matchType === 'exact' ? '✓' : '~';
-            activeOcrHtml += ' <span style="color: ' + matchColor + ';">' + matchLabel + ' ' + formatBountyName(detected) + '</span>';
+            activeOcrHtml += ' <span style="color: ' + matchColor + ';">' + matchLabel + ' ' + formatBountyName(detected, rarity) + '</span>';
             if (matchType === 'fuzzy') {
               activeOcrHtml += ' <span style="color: #888; font-size: 11px;">(fuzzy)</span>';
             }
@@ -1296,6 +1308,7 @@ function generateSettingsHTML(config: Config, version: string, gitHash: string, 
           const key = 'boardRegion' + i;
           const text = data.rawOcrText[key] || '';
           const detected = data.boardBounties && data.boardBounties[i] ? data.boardBounties[i] : '';
+          const rarity = data.boardBountyRarities && data.boardBountyRarities[i] ? data.boardBountyRarities[i] : null;
           const matchType = data.matchTypes && data.matchTypes[key] ? data.matchTypes[key] : null;
           const fuzzyMatches = data.fuzzyDebug && data.fuzzyDebug[key] ? data.fuzzyDebug[key] : null;
           
@@ -1305,7 +1318,7 @@ function generateSettingsHTML(config: Config, version: string, gitHash: string, 
           if (detected) {
             const matchColor = matchType === 'exact' ? '#4ade80' : '#fbbf24';
             const matchLabel = matchType === 'exact' ? '✓' : '~';
-            boardOcrHtml += ' <span style="color: ' + matchColor + ';">' + matchLabel + ' ' + formatBountyName(detected) + '</span>';
+            boardOcrHtml += ' <span style="color: ' + matchColor + ';">' + matchLabel + ' ' + formatBountyName(detected, rarity) + '</span>';
             if (matchType === 'fuzzy') {
               boardOcrHtml += ' <span style="color: #888; font-size: 11px;">(fuzzy)</span>';
             }
@@ -1327,11 +1340,19 @@ function generateSettingsHTML(config: Config, version: string, gitHash: string, 
       }
     }
 
-    function formatBountyName(key) {
+    function formatBountyName(key, rarity) {
       // Convert SNAKE_CASE to Title Case with spaces
-      return key.split('_')
+      const name = key.split('_')
         .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
         .join(' ');
+      
+      // Add rarity suffix if present
+      if (rarity) {
+        const rarityLabel = rarity.charAt(0).toUpperCase() + rarity.slice(1);
+        return name + ' (' + rarityLabel + ')';
+      }
+      
+      return name;
     }
 
     // Update board timer every second
@@ -1391,7 +1412,13 @@ function generateSettingsHTML(config: Config, version: string, gitHash: string, 
       if (isNaN(detectiveLevel) || detectiveLevel < 1) detectiveLevel = 1;
       if (detectiveLevel > 500) detectiveLevel = 500;
       
+      const chatBoxFontSizeInput = document.getElementById('chatBoxFontSize');
+      let chatBoxFontSize = parseInt(chatBoxFontSizeInput.value);
+      if (isNaN(chatBoxFontSize) || chatBoxFontSize < 10) chatBoxFontSize = 10;
+      if (chatBoxFontSize > 50) chatBoxFontSize = 50;
+      
       return {
+        chatBoxFontSize,
         checkForUpdatesOnStartup: document.getElementById('checkForUpdatesOnStartup').checked,
         detectiveLevel,
         isBattleOfFortuneholdCompleted: document.getElementById('isBattleOfFortuneholdCompleted').checked,
@@ -1417,6 +1444,11 @@ function generateSettingsHTML(config: Config, version: string, gitHash: string, 
         currentConfig.pathfindingQuality !== newConfig.pathfindingQuality;
       
       ipcRenderer.send('settings-update', newConfig);
+      
+      // Apply chat box font size immediately without restart
+      if (currentConfig.chatBoxFontSize !== newConfig.chatBoxFontSize) {
+        ipcRenderer.send('update-chat-font-size', newConfig.chatBoxFontSize);
+      }
       
       if (restartRequired) {
         showRestartBanner();
@@ -1456,11 +1488,23 @@ function generateSettingsHTML(config: Config, version: string, gitHash: string, 
       }
     }
 
+    function validateChatBoxFontSize() {
+      const input = document.getElementById('chatBoxFontSize');
+      const value = parseInt(input.value);
+      if (isNaN(value) || value < 10 || value > 50) {
+        input.classList.add('invalid');
+      } else {
+        input.classList.remove('invalid');
+      }
+    }
+
     document.querySelectorAll('#settings input, #settings select').forEach(el => {
       el.addEventListener('change', saveConfig);
       el.addEventListener('input', () => {
         if (el.id === 'detectiveLevel') {
           validateDetectiveLevel();
+        } else if (el.id === 'chatBoxFontSize') {
+          validateChatBoxFontSize();
         }
       });
     });
@@ -1589,6 +1633,7 @@ function generateSettingsHTML(config: Config, version: string, gitHash: string, 
     });
 
     ipcRenderer.on('config-updated', (e, config) => {
+      document.getElementById('chatBoxFontSize').value = config.chatBoxFontSize ?? 23;
       document.getElementById('detectiveLevel').value = config.detectiveLevel ?? 500;
       document.getElementById('isBattleOfFortuneholdCompleted').checked = config.isBattleOfFortuneholdCompleted ?? true;
       document.getElementById('ocrMethod').value = config.ocrMethod ?? 'auto';

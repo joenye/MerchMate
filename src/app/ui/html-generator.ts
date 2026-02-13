@@ -1,4 +1,14 @@
 // HTML template generator for overlay window
+let currentChatFontSize = 23; // Default font size
+
+export function setChatFontSize(fontSize: number): void {
+  currentChatFontSize = fontSize;
+}
+
+export function getChatFontSize(): number {
+  return currentChatFontSize;
+}
+
 export function generateOverlayHTML(chatTitle: string, regionElements: string): string {
   return `
     <head>
@@ -23,6 +33,14 @@ export function generateOverlayHTML(chatTitle: string, regionElements: string): 
             .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
             .join(' ');
         }
+        
+        function formatBountyWithRarity(key, rarity) {
+          const name = formatBountyName(key);
+          if (!rarity) return name;
+          
+          const rarityText = rarity.charAt(0).toUpperCase() + rarity.slice(1);
+          return name + ' (' + rarityText + ')';
+        }
 
         function updateOverlays(ocrData) {
           // Check if we have optimal bounties
@@ -46,13 +64,15 @@ export function generateOverlayHTML(chatTitle: string, regionElements: string): 
                 isActiveBounty = true;
                 isDrop = true;
                 const bountyKey = ocrData.activeBounties && ocrData.activeBounties[index];
-                const bountyName = bountyKey ? formatBountyName(bountyKey) : '';
+                const rarity = ocrData.activeBountyRarities && ocrData.activeBountyRarities[index];
+                const bountyName = bountyKey ? formatBountyWithRarity(bountyKey, rarity) : '';
                 overlayHTML = '<div style="width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center;"><div style="font-size:32px; font-weight:bold; color:rgb(231,76,60);">DROP</div>' + (bountyName ? '<div style="font-size:11px; color:white; background:black; padding:2px 6px; border-radius:3px; margin-top:4px;">' + bountyName + '</div>' : '') + '</div>';
               } else if (ocrData.activeBountyIndices && ocrData.activeBountyIndices.indexOf(index) !== -1) {
                 shouldShow = true;
                 isActiveBounty = true;
                 const bountyKey = ocrData.activeBounties && ocrData.activeBounties[index];
-                const bountyName = bountyKey ? formatBountyName(bountyKey) : '';
+                const rarity = ocrData.activeBountyRarities && ocrData.activeBountyRarities[index];
+                const bountyName = bountyKey ? formatBountyWithRarity(bountyKey, rarity) : '';
                 overlayHTML = '<div style="width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center;"><div style="font-size:28px;">👁️</div>' + (bountyName ? '<div style="font-size:11px; color:white; background:black; padding:2px 6px; border-radius:3px; margin-top:4px;">' + bountyName + '</div>' : '') + '</div>';
               }
             } else if(region.id.startsWith("boardRegion")) {
@@ -62,18 +82,21 @@ export function generateOverlayHTML(chatTitle: string, regionElements: string): 
                 shouldShow = true;
                 isCalculating = true;
                 const bountyKey = ocrData.boardBounties && ocrData.boardBounties[index];
-                const bountyName = bountyKey ? formatBountyName(bountyKey) : '';
+                const rarity = ocrData.boardBountyRarities && ocrData.boardBountyRarities[index];
+                const bountyName = bountyKey ? formatBountyWithRarity(bountyKey, rarity) : '';
                 overlayHTML = '<div style="width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center;"><div style="font-size:32px; font-weight:bold; color:rgb(150,150,150);">CALCULATING</div>' + (bountyName ? '<div style="font-size:11px; color:white; background:black; padding:2px 6px; border-radius:3px; margin-top:4px;">' + bountyName + '</div>' : '') + '</div>';
               } else if(ocrData.boardPickups && ocrData.boardPickups.indexOf(index) !== -1) {
                 shouldShow = true;
                 isAccept = true;
                 const bountyKey = ocrData.boardBounties && ocrData.boardBounties[index];
-                const bountyName = bountyKey ? formatBountyName(bountyKey) : '';
+                const rarity = ocrData.boardBountyRarities && ocrData.boardBountyRarities[index];
+                const bountyName = bountyKey ? formatBountyWithRarity(bountyKey, rarity) : '';
                 overlayHTML = '<div style="width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center;"><div style="font-size:32px; font-weight:bold; color:rgb(46,204,113);">ACCEPT</div>' + (bountyName ? '<div style="font-size:11px; color:white; background:black; padding:2px 6px; border-radius:3px; margin-top:4px;">' + bountyName + '</div>' : '') + '</div>';
               } else if (ocrData.boardBountyIndices && ocrData.boardBountyIndices.indexOf(index) !== -1) {
                 shouldShow = true;
                 const bountyKey = ocrData.boardBounties && ocrData.boardBounties[index];
-                const bountyName = bountyKey ? formatBountyName(bountyKey) : '';
+                const rarity = ocrData.boardBountyRarities && ocrData.boardBountyRarities[index];
+                const bountyName = bountyKey ? formatBountyWithRarity(bountyKey, rarity) : '';
                 overlayHTML = '<div style="width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center;"><div style="font-size:28px;">👁️</div>' + (bountyName ? '<div style="font-size:11px; color:white; background:black; padding:2px 6px; border-radius:3px; margin-top:4px;">' + bountyName + '</div>' : '') + '</div>';
               }
             }
@@ -168,13 +191,28 @@ export function generateOverlayHTML(chatTitle: string, regionElements: string): 
             }
             
             // Preserve resize handle when updating content (hidden when not in edit mode)
-            chatRegion.innerHTML = \`<p style="color: white; font-size: 23px; white-space: pre-wrap; line-height: 160%;">\${fullFormattedText}</p>\`;
+            chatRegion.innerHTML = \`<p style="color: white; font-size: \${window.chatFontSize || 23}px; white-space: pre-wrap; line-height: 160%;">\${fullFormattedText}</p>\`;
             const handle = document.createElement('div');
             handle.className = 'resize-handle';
             handle.style.cssText = 'position: absolute; right: 0; bottom: 0; width: 25px; height: 25px; background: rgba(42, 42, 42, 0.9); cursor: nwse-resize; display: none;';
             chatRegion.appendChild(handle);
           }
         }
+
+        // Initialize chat font size
+        window.chatFontSize = ${currentChatFontSize};
+
+        electron.ipcRenderer.on('chat-font-size-update', (e, fontSize) => {
+          window.chatFontSize = fontSize;
+          // Re-render chat if we have current data
+          const chatRegion = document.getElementById('chatRegion');
+          if (chatRegion && chatRegion.querySelector('p')) {
+            const p = chatRegion.querySelector('p');
+            if (p) {
+              p.style.fontSize = fontSize + 'px';
+            }
+          }
+        });
 
         electron.ipcRenderer.on('edit-mode-change', (e, editMode, ocrData) => {
           currentEditMode = editMode;

@@ -43,6 +43,7 @@ const DEFAULT_REGIONS_FOR_CONFIG: { [key: string]: { x: number; y: number; width
 };
 
 const DEFAULT_CONFIG: Config = {
+  chatBoxFontSize: 23,
   checkForUpdatesOnStartup: true,
   detectiveLevel: 500,
   isBattleOfFortuneholdCompleted: true,
@@ -59,6 +60,7 @@ const DEFAULT_CONFIG: Config = {
 
 // Keys that are valid in the config (excluding regions which is handled separately)
 const VALID_CONFIG_KEYS = new Set([
+  'chatBoxFontSize',
   'checkForUpdatesOnStartup',
   'detectiveLevel',
   'isBattleOfFortuneholdCompleted',

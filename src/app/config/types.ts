@@ -21,6 +21,7 @@ export interface FindBestArgs {
   allBounties: string[];
   detectiveLevel: number;
   battleOfFortuneholdCompleted: boolean;
+  bountyRarities?: { [bountyKey: string]: 'uncommon' | 'rare' | 'epic' | null };
   pruningOptions?: {
     maxCombinations?: number;
     pruningThreshold?: number;
@@ -51,6 +52,8 @@ export interface Config {
   pathfindingQuality?: number;
   /** Check for updates on app startup. Default: true */
   checkForUpdatesOnStartup?: boolean;
+  /** Chat box font size in pixels. Default: 23 */
+  chatBoxFontSize?: number;
 }
 
 export interface OCRData {
@@ -61,6 +64,8 @@ export interface OCRData {
   boardBountyIndices?: number[];
   activeBounties?: { [index: number]: string };
   boardBounties?: { [index: number]: string };
+  activeBountyRarities?: { [index: number]: 'uncommon' | 'rare' | 'epic' | null };
+  boardBountyRarities?: { [index: number]: 'uncommon' | 'rare' | 'epic' | null };
   rawOcrText?: { [key: string]: string };
   matchTypes?: { [key: string]: 'exact' | 'fuzzy' };
   fuzzyDebug?: { [key: string]: Array<{ bountyKey: string; score: number; nameScore: number; fromScore: number; toScore: number; positionBonus: number }> };
