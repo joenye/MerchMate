@@ -140,6 +140,8 @@ export class ScreenshotManager {
       boardBountyIndices: Object.keys(this.ocrProcessor.boardBounties).map(Number),
       activeBounties: { ...this.ocrProcessor.activeBounties },
       boardBounties: { ...this.ocrProcessor.boardBounties },
+      activeBountyRarities: { ...this.ocrProcessor.activeBountyRarities },
+      boardBountyRarities: { ...this.ocrProcessor.boardBountyRarities },
       rawOcrText: { ...this.ocrProcessor.rawOcrText },
       matchTypes: { ...this.ocrProcessor.matchTypes },
       fuzzyDebug: { ...this.ocrProcessor.fuzzyDebug },

@@ -47,8 +47,9 @@ export class SessionTracker {
     }
   }
 
-  recordBountyCompletion(bountyKey: string): void {
-    const bountyKp = (bountyData as any)[bountyKey]?.kp || 0;
+  recordBountyCompletion(bountyKey: string, rarityMultiplier: number = 1): void {
+    const baseKp = (bountyData as any)[bountyKey]?.kp || 0;
+    const bountyKp = baseKp * rarityMultiplier;
     this.stats.totalBountiesCompleted++;
     this.stats.totalKpEarned += bountyKp;
     this.stats.bountyTypeCounts.set(

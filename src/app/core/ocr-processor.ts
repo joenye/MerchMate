@@ -36,6 +36,10 @@ export class OCRProcessor {
   public activeBounties: { [index: number]: string } = {};
   public boardBounties: { [index: number]: string } = {};
   
+  // Bounty rarity tracking (uncommon, rare, epic) - separate for active and board
+  public activeBountyRarities: { [index: number]: 'uncommon' | 'rare' | 'epic' | null } = {};
+  public boardBountyRarities: { [index: number]: 'uncommon' | 'rare' | 'epic' | null } = {};
+  
   // Raw OCR text for debugging
   public rawOcrText: { [key: string]: string } = {};
   
@@ -284,8 +288,10 @@ export class OCRProcessor {
       const restT0 = nowMsHiRes();
       const regionResults = await mapWithConcurrency(keysToOCR, this.concurrency, async (key) => {
         const region = regions[key];
-        const res = await this.recognizeRegion(base, region, scaledWidth, scaledHeight);
-        return { key, text: res.text };
+        // Mark bounty regions for rarity detection
+        const regionWithRarity = { ...region, detectRarity: key.startsWith('activeBountyRegion') || key.startsWith('boardRegion') };
+        const res = await this.recognizeRegion(base, regionWithRarity, scaledWidth, scaledHeight);
+        return { key, text: res.text, rarity: res.rarity };
       });
       this.perf.add('rest_ocr', nowMsHiRes() - restT0);
 
@@ -314,12 +320,34 @@ export class OCRProcessor {
     return { left: l, top: t, width: w, height: h };
   }
 
+  /**
+   * Detect bounty rarity based on OCR text
+   * Returns 'uncommon' (2x), 'rare' (3x), 'epic' (4x), or null (1x)
+   */
+  private detectBountyRarityFromText(text: string): 'uncommon' | 'rare' | 'epic' | null {
+    const textLower = text.toLowerCase();
+    
+    if (textLower.includes('epic')) {
+      return 'epic'; // 4x multiplier
+    }
+    
+    if (textLower.includes('rare')) {
+      return 'rare'; // 3x multiplier
+    }
+    
+    if (textLower.includes('uncommon')) {
+      return 'uncommon'; // 2x multiplier
+    }
+    
+    return null; // Normal bounty (1x multiplier)
+  }
+
   private async recognizeRegion(
     base: import('sharp').Sharp,
     region: Region,
     scaledImageWidth: number,
     scaledImageHeight: number
-  ): Promise<{ text: string }> {
+  ): Promise<{ text: string; rarity?: 'uncommon' | 'rare' | 'epic' | null }> {
     let left = Math.round(region.x * this.scale);
     let top = Math.round(region.y * this.scale);
     let width = Math.round(region.width * this.scale);
@@ -352,7 +380,15 @@ export class OCRProcessor {
       .toBuffer();
 
     const text = await execTesseractFromBuffer(croppedBuffer, this.ocrMethod);
-    return { text: text.replace(/\s/g, "") };
+    const cleanText = text.replace(/\s/g, "");
+    
+    // Detect rarity for bounty regions (not title region)
+    let rarity: 'uncommon' | 'rare' | 'epic' | null = null;
+    if (region && (region as any).detectRarity) {
+      rarity = this.detectBountyRarityFromText(text);
+    }
+    
+    return { text: cleanText, rarity };
   }
 
   private makeAllBountiesSignature(allBounties: string[]): string {
@@ -382,10 +418,26 @@ export class OCRProcessor {
       ? { maxCombinations: Infinity, pruningThreshold: 1.0 }
       : qualitySettings[this.pathfindingQuality] ?? qualitySettings[5];
 
+    // Convert index-based rarities to bounty-key-based rarities
+    const bountyRarities: { [bountyKey: string]: 'uncommon' | 'rare' | 'epic' | null } = {};
+    for (const [indexStr, bountyKey] of Object.entries(this.activeBounties)) {
+      const index = Number(indexStr);
+      if (this.activeBountyRarities[index]) {
+        bountyRarities[bountyKey] = this.activeBountyRarities[index];
+      }
+    }
+    for (const [indexStr, bountyKey] of Object.entries(this.boardBounties)) {
+      const index = Number(indexStr);
+      if (this.boardBountyRarities[index]) {
+        bountyRarities[bountyKey] = this.boardBountyRarities[index];
+      }
+    }
+
     const args: FindBestArgs = {
       allBounties,
       detectiveLevel: this.detectiveLevel,
       battleOfFortuneholdCompleted: this.battleOfFortuneholdCompleted,
+      bountyRarities,
       pruningOptions
     };
     const fb0 = nowMsHiRes();
@@ -512,11 +564,13 @@ export class OCRProcessor {
   }
 
   private async processOCRResultsAsync(
-    results: { key: string, text: string }[],
+    results: { key: string, text: string, rarity?: 'uncommon' | 'rare' | 'epic' | null }[],
     boardOpen: boolean
   ): Promise<void> {
     const detectedActive: { [index: number]: string } = {};
     const detectedBoard: { [index: number]: string } = {};
+    const detectedActiveRarities: { [index: number]: 'uncommon' | 'rare' | 'epic' | null } = {};
+    const detectedBoardRarities: { [index: number]: 'uncommon' | 'rare' | 'epic' | null } = {};
 
     // Store raw OCR text for debugging
     this.rawOcrText = {};
@@ -525,7 +579,7 @@ export class OCRProcessor {
       this.rawOcrText[key] = text;
     }
 
-    for (const { key, text } of results) {
+    for (const { key, text, rarity } of results) {
       if (!text) continue;
       if (key === "bountyBoardTitleRegion") continue;
 
@@ -578,12 +632,21 @@ export class OCRProcessor {
         if (key.startsWith("activeBountyRegion")) {
           const index = parseInt(key.replace("activeBountyRegion", ""), 10);
           detectedActive[index] = bountyKey;
+          detectedActiveRarities[index] = rarity || null;
         } else if (key.startsWith("boardRegion")) {
           const index = parseInt(key.replace("boardRegion", ""), 10);
           detectedBoard[index] = bountyKey;
+          detectedBoardRarities[index] = rarity || null;
         }
       }
     }
+    
+    // Store previous rarities before updating (needed for bounty completion detection)
+    const prevActiveRarities = { ...this.activeBountyRarities };
+    
+    // Update bounty rarities separately for active and board
+    this.activeBountyRarities = detectedActiveRarities;
+    this.boardBountyRarities = detectedBoardRarities;
 
     // Track newly-added active bounties
     const now = Date.now();
@@ -803,6 +866,7 @@ export class OCRProcessor {
 
     // Handle bounty completion - use counts calculated before persistence
     let completedBounty: string | undefined;
+    let completedBountyIndex: number | undefined;
 
     if (prevActiveCount > currActiveCount && (prevActiveCount - currActiveCount) === 1) {
       const prevBountyCounts = new Map<string, number>();
@@ -820,6 +884,13 @@ export class OCRProcessor {
         const currCount = currBountyCounts.get(bounty) || 0;
         if (currCount < prevCount) {
           completedBounty = bounty;
+          // Find which index had this bounty
+          for (const [idx, b] of Object.entries(this.prevActiveBounties)) {
+            if (b === bounty && !(idx in detectedActive)) {
+              completedBountyIndex = Number(idx);
+              break;
+            }
+          }
           break;
         }
       }
@@ -828,7 +899,11 @@ export class OCRProcessor {
         // Only record completion and advance steps when board is closed
         // When board is open, user is just dropping bounties to adjust their selection
         if (!boardOpen) {
-          this.sessionTracker.recordBountyCompletion(completedBounty);
+          // Get rarity multiplier for the completed bounty - use previous rarities since current ones don't include the completed bounty
+          const rarity = completedBountyIndex !== undefined ? prevActiveRarities[completedBountyIndex] : null;
+          const rarityMultiplier = rarity === 'epic' ? 4 : rarity === 'rare' ? 3 : rarity === 'uncommon' ? 2 : 1;
+          
+          this.sessionTracker.recordBountyCompletion(completedBounty, rarityMultiplier);
 
           let completedStepIdx = -1;
           for (let idx = 0; idx < this.steps.length; idx++) {

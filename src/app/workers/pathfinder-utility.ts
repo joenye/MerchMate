@@ -108,7 +108,7 @@ export class PathfinderUtilityPool {
   }
 
   async findBest(args: FindBestArgs, timeoutMs: number): Promise<FindBestResult> {
-    const { allBounties, detectiveLevel, battleOfFortuneholdCompleted, pruningOptions = {} } = args;
+    const { allBounties, detectiveLevel, battleOfFortuneholdCompleted, bountyRarities = {}, pruningOptions = {} } = args;
     const { maxCombinations = 400, pruningThreshold = 0.95 } = pruningOptions;
 
     const t0 = Date.now();
@@ -116,11 +116,22 @@ export class PathfinderUtilityPool {
     const combinationsMod = require('../../algorithm/combinations').default;
     const bountyDataMod = require('../../algorithm/bounties').bounties;
 
+    // Helper function to get KP with rarity multiplier
+    const getBountyKp = (bountyKey: string): number => {
+      const baseKp = bountyDataMod[bountyKey].kp;
+      const rarity = bountyRarities[bountyKey];
+      
+      if (rarity === 'epic') return baseKp * 4;
+      if (rarity === 'rare') return baseKp * 3;
+      if (rarity === 'uncommon') return baseKp * 2;
+      return baseKp;
+    };
+
     const maxComboSize = Math.min(allBounties.length, 6);
     const combos = combinationsMod(allBounties, maxComboSize);
 
     const comboTasks: ComboTask[] = combos.map((combo: string[]) => {
-      const kp = combo.reduce((acc: number, bounty: string) => acc + bountyDataMod[bounty].kp, 0);
+      const kp = combo.reduce((acc: number, bounty: string) => acc + getBountyKp(bounty), 0);
       const uniqueLocations = new Set<number>();
       for (const bounty of combo) {
         uniqueLocations.add(bountyDataMod[bounty].seller.node);
